@@ -13,9 +13,7 @@ public final class StadiumFixtureManagement {
     private final Map<String, Fixture> fixtures = new LinkedHashMap<>();
 
     public void registerStadium(Stadium stadium) throws FixtureException {
-        if (stadium == null) {
-            throw new FixtureException("Stadium is required.");
-        }
+        rejectIf(stadium == null, "Stadium is required.");
         if (stadiums.putIfAbsent(key(stadium.getId()), stadium) != null) {
             throw new FixtureException("Stadium ID already registered: " + stadium.getId());
         }
@@ -23,17 +21,13 @@ public final class StadiumFixtureManagement {
 
     public Stadium findStadium(String id) throws FixtureException {
         Stadium stadium = stadiums.get(key(id));
-        if (stadium == null) {
-            throw new FixtureException("Unknown stadium: " + id);
-        }
+        rejectIf(stadium == null, "Unknown stadium: " + id);
         return stadium;
     }
 
     public Fixture findFixture(String id) throws FixtureException {
         Fixture fixture = fixtures.get(key(id));
-        if (fixture == null) {
-            throw new FixtureException("Unknown fixture: " + id);
-        }
+        rejectIf(fixture == null, "Unknown fixture: " + id);
         return fixture;
     }
 
@@ -48,9 +42,7 @@ public final class StadiumFixtureManagement {
     public Fixture scheduleFixture(String id, FootballTeam home, FootballTeam away,
                                    String stadiumId, LocalDateTime kickoff) throws FixtureException {
         String fixtureKey = key(id);
-        if (fixtures.containsKey(fixtureKey)) {
-            throw new FixtureException("Fixture ID already exists: " + id);
-        }
+        rejectIf(fixtures.containsKey(fixtureKey), "Fixture ID already exists: " + id);
 
         validateTeam(home);
         validateTeam(away);
@@ -81,21 +73,15 @@ public final class StadiumFixtureManagement {
 
     public void assignOfficial(String fixtureId, MatchOfficial official) throws FixtureException {
         Fixture fixture = scheduledFixture(fixtureId);
-        if (official == null) {
-            throw new FixtureException("Match official is required.");
-        }
-        if (fixture.hasOfficial(official.getIdNumber())) {
-            throw new FixtureException("Official is already assigned to this fixture.");
-        }
+        rejectIf(official == null, "Match official is required.");
+        rejectIf(fixture.hasOfficial(official.getIdNumber()), "Official is already assigned to this fixture.");
         checkOfficialSlot(fixture, official, fixture.getKickoff());
         fixture.addOfficial(official);
     }
 
     public void recordResult(String fixtureId, int homeScore, int awayScore) throws FixtureException {
         Fixture fixture = scheduledFixture(fixtureId);
-        if (homeScore < 0 || awayScore < 0) {
-            throw new FixtureException("Match scores cannot be negative.");
-        }
+        rejectIf(homeScore < 0 || awayScore < 0, "Match scores cannot be negative.");
         fixture.complete(homeScore, awayScore);
     }
 
@@ -105,24 +91,18 @@ public final class StadiumFixtureManagement {
 
     private Fixture scheduledFixture(String fixtureId) throws FixtureException {
         Fixture fixture = findFixture(fixtureId);
-        if (fixture.getStatus() != Fixture.Status.SCHEDULED) {
-            throw new FixtureException("Only scheduled fixtures can be changed.");
-        }
+        rejectIf(fixture.getStatus() != Fixture.Status.SCHEDULED, "Only scheduled fixtures can be changed.");
         return fixture;
     }
 
     private static void validateTeam(FootballTeam team) throws FixtureException {
-        if (team == null || !team.eligibleForFixture()) {
-            throw new FixtureException("Both teams must be registered and eligible to play.");
-        }
+        rejectIf(team == null || !team.eligibleForFixture(), "Both teams must be registered and eligible to play.");
         Stadium.requiredText(team.getRegistrationNumber(), "Team registration number");
     }
 
     private void checkSlot(Fixture moving, FootballTeam home, FootballTeam away,
                            Stadium stadium, LocalDateTime kickoff) throws FixtureException {
-        if (kickoff == null) {
-            throw new FixtureException("Kickoff date and time are required.");
-        }
+        rejectIf(kickoff == null, "Kickoff date and time are required.");
 
         for (Fixture existing : fixtures.values()) {
             if (!sharesSlot(existing, moving, kickoff)) {
@@ -139,9 +119,7 @@ public final class StadiumFixtureManagement {
 
     private void checkOfficialSlot(Fixture fixture, MatchOfficial official, LocalDateTime kickoff)
             throws FixtureException {
-        if (!official.isAvailable()) {
-            throw new FixtureException("Match official is unavailable: " + official.getName());
-        }
+        rejectIf(!official.isAvailable(), "Match official is unavailable: " + official.getName());
         for (Fixture existing : fixtures.values()) {
             if (sharesSlot(existing, fixture, kickoff) && existing.hasOfficial(official.getIdNumber())) {
                 throw new FixtureException("Official already has a fixture at this time.");
@@ -153,6 +131,12 @@ public final class StadiumFixtureManagement {
         return existing != moving
                 && existing.getStatus() != Fixture.Status.CANCELLED
                 && existing.getKickoff().equals(kickoff);
+    }
+
+    private static void rejectIf(boolean problem, String message) throws FixtureException {
+        if (problem) {
+            throw new FixtureException(message);
+        }
     }
 
     private static String key(String id) throws FixtureException {
